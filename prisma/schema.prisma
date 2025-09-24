@@ -1,0 +1,241 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Accommodation {
+  id           String   @id @default(uuid())
+  name         String
+  nameEn       String   @map("name_en")
+  address      String
+  area         Area
+  hostName     String   @map("host_name")
+  hostPhone    String   @map("host_phone")
+  hostEmail    String?  @map("host_email")
+  qrCode       String   @unique @map("qr_code")
+  description  String
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // 관계
+  orders       Order[]
+
+  @@map("accommodations")
+}
+
+model Restaurant {
+  id           String   @id @default(uuid())
+  name         String
+  nameEn       String   @map("name_en")
+  nameJp       String   @map("name_jp")
+  nameCn       String   @map("name_cn")
+  areas        Area[]
+  category     Category
+  image        String
+  minOrderAmount Int      @default(10000) @map("min_order_amount")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // 관계
+  menuItems MenuItem[]
+
+  @@map("restaurants")
+}
+
+model MenuItem {
+  id           String   @id @default(uuid())
+  restaurantId String   @map("restaurant_id")
+  name         String
+  nameEn       String   @map("name_en")
+  nameJp       String   @map("name_jp")
+  nameCn       String   @map("name_cn")
+  description  String?
+  descriptionEn String?  @map("description_en")
+  descriptionJp String?  @map("description_jp")
+  descriptionCn String?  @map("description_cn")
+  basePrice    Int      @map("base_price")
+  image        String
+  isPopular    Boolean  @default(false) @map("is_popular")
+  isAvailable  Boolean  @default(true) @map("is_available")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // 관계
+  restaurant  Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  orderItems  OrderItem[]
+  menuOptions MenuOption[]
+
+  @@map("menu_items")
+}
+
+model MenuOption {
+  id         String   @id @default(uuid())
+  menuItemId String   @map("menu_item_id")
+  type       OptionType
+  name       String
+  nameEn     String   @map("name_en")
+  nameJp     String   @map("name_jp")
+  nameCn     String   @map("name_cn")
+  price      Int      @default(0) // 추가 가격 (0이면 기본 가격)
+  isRequired Boolean  @default(false) @map("is_required")
+  isActive   Boolean  @default(true) @map("is_active")
+  sortOrder  Int      @default(0) @map("sort_order")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  // 관계
+  menuItem    MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  orderOptionSelections OrderOptionSelection[]
+
+  @@map("menu_options")
+}
+
+model Order {
+  id                   String   @id @default(uuid())
+  accommodationId      String   @map("accommodation_id")
+  totalAmount          Int      @map("total_amount")
+  deliveryFee          Int      @default(3000) @map("delivery_fee")
+  status               OrderStatus @default(PENDING)
+  paymentMethod        String   @map("payment_method")
+  paymentStatus        PaymentStatus @default(PENDING) @map("payment_status")
+  paypalOrderId        String?  @map("paypal_order_id")
+  paypalCaptureId      String?  @map("paypal_capture_id")
+  paymentDetails       Json?    @map("payment_details") // PayPal 결제 상세 정보
+  notes                String?
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  // 관계
+  orderItems           OrderItem[]
+  accommodation        Accommodation @relation(fields: [accommodationId], references: [id])
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id          String   @id @default(uuid())
+  orderId     String   @map("order_id")
+  menuItemId  String   @map("menu_item_id")
+  quantity    Int
+  unitPrice   Int      @map("unit_price") // 최종 가격 (기본가격 + 옵션 가격)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // 관계
+  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id])
+  optionSelections OrderOptionSelection[]
+
+  @@map("order_items")
+}
+
+model OrderOptionSelection {
+  id          String   @id @default(uuid())
+  orderItemId String   @map("order_item_id")
+  menuOptionId String  @map("menu_option_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // 관계
+  orderItem  OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  menuOption MenuOption @relation(fields: [menuOptionId], references: [id])
+
+  @@map("order_option_selections")
+}
+
+model Analytics {
+  id            String   @id @default(uuid())
+  sessionId     String   @map("session_id")  // 사용자 세션 식별
+  accommodationId String? @map("accommodation_id")  // QR 진입 시
+  eventType     AnalyticsEventType @map("event_type")
+  eventData     Json?    @map("event_data")  // 추가 데이터 (JSON)
+  ipAddress     String?  @map("ip_address")
+  userAgent     String?  @map("user_agent")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@map("analytics")
+}
+
+// Enum 정의
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  DELIVERED
+  CANCELLED
+
+  @@map("order_status")
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+
+  @@map("payment_status")
+}
+
+enum Category {
+  BURGERS
+  DESSERTS
+  CHICKEN
+  BUNSIK
+  KOREAN
+  GRILLED
+  JOKBAL
+  STEW
+  PIZZA
+  SEAFOOD
+  ASIAN
+  SALADS
+  MEXICAN
+  VEGAN
+  HALAL
+
+  @@map("category")
+}
+
+enum Area {
+  GANGNAM      // 강남
+  MYEONGDONG   // 명동
+  HONGDAE      // 홍대
+  ITAEWON      // 이태원
+  JONGNO       // 종로
+  SINCHON      // 신촌
+  KONDAE       // 건대
+  JAMSIL       // 잠실
+  APGUJEONG    // 압구정
+  CHEONGDAM    // 청담
+  INSADONG     // 인사동
+  DONGDAEMUN   // 동대문
+  NAMDAEMUN    // 남대문
+  YEOUIDO      // 여의도
+  SONGPA       // 송파
+
+  @@map("area")
+}
+
+enum OptionType {
+  SIZE
+  SPICY
+  ADDITIONAL
+
+  @@map("option_type")
+}
+
+enum AnalyticsEventType {
+  QR_ENTRY          // QR 코드로 진입
+  CART_ADD_ITEM     // 장바구니에 아이템 추가
+  CHECKOUT_VIEW     // 체크아웃 페이지 방문
+  ORDER_PLACE_CLICK // 주문 버튼 클릭
+  ORDER_COMPLETE    // 주문 완료
+
+  @@map("analytics_event_type")
+}

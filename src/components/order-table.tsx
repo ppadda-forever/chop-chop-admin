@@ -16,11 +16,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { getOrders } from "../app/actions";
+import { StatusSelector } from "./status-selector";
+
+type OrderStatus = "PENDING" | "CONFIRMED" | "DELIVERED" | "CANCELLED";
 
 interface Order {
   id: string;
-  createdAt: string; // Now a string from Server Action
-  status: string;
+  createdAt: string;
+  status: OrderStatus;
   paymentStatus: string;
   totalAmount: number;
   paymentMethod: string;
@@ -28,51 +31,26 @@ interface Order {
   accommodation: {
     name: string;
     area: string;
-    createdAt: string; // Now a string from Server Action
-    updatedAt: string; // Now a string from Server Action
   };
+  orderItems: {
+    menuItem: {
+      restaurant: {
+        name: string;
+      };
+    };
+  }[];
 }
 
-export function OrderTable() {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+interface OrderTableProps {
+  orders: Order[];
+}
 
-  useEffect(() => {
-    async function fetchOrders() {
-      try {
-        const fetchedOrders = await getOrders();
+export function OrderTable({ orders }: OrderTableProps) {
+  // The component now receives orders directly as a prop.
+  // No need for internal state for loading, error, or the orders themselves.
 
-        // The fetchedOrders are already formatted for serialization in the Server Action
-        // We just need to ensure the Date objects are re-parsed for display if needed
-        const formattedOrders: Order[] = fetchedOrders.map((order: any) => ({
-          ...order,
-          createdAt: new Date(order.createdAt).toLocaleString(), // Convert back to display format
-          accommodation: {
-            ...order.accommodation,
-            createdAt: new Date(order.accommodation.createdAt).toLocaleString(),
-            updatedAt: new Date(order.accommodation.updatedAt).toLocaleString(),
-          }
-        }));
-
-        setOrders(formattedOrders);
-        setLoading(false);
-      } catch (err: any) {
-        console.error("Error fetching orders from Server Action:", err);
-        setError(err.message || "Failed to fetch orders.");
-        setLoading(false);
-      }
-    }
-
-    fetchOrders();
-  }, []);
-
-  if (loading) {
-    return <p>Loading orders...</p>;
-  }
-
-  if (error) {
-    return <p>Error: {error}</p>;
+  if (!orders) {
+    return <p>No orders to display.</p>;
   }
 
   return (
@@ -89,20 +67,28 @@ export function OrderTable() {
               <TableHead>상태</TableHead>
               <TableHead>결제 상태</TableHead>
               <TableHead>숙소</TableHead>
+              <TableHead>가게 이름</TableHead>
               <TableHead>합계</TableHead>
               <TableHead>결제수단</TableHead>
+              <TableHead>메모</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {orders.map((order) => (
               <TableRow key={order.id}>
                 <TableCell className="font-medium">{order.id}</TableCell>
-                <TableCell>{order.createdAt}</TableCell>
-                <TableCell>{order.status}</TableCell>
+                <TableCell>{new Date(order.createdAt).toLocaleString()}</TableCell>
+                <TableCell>
+                  <StatusSelector orderId={order.id} currentStatus={order.status} />
+                </TableCell>
                 <TableCell>{order.paymentStatus}</TableCell>
-                <TableCell>{`${order.accommodation.name} · ${order.accommodation.area}`}</TableCell>
+                <TableCell>{order.accommodation.name}</TableCell>
+                <TableCell>
+                  {order.orderItems[0]?.menuItem.restaurant.name || '-'}
+                </TableCell>
                 <TableCell>{`₩${order.totalAmount.toLocaleString()}`}</TableCell>
                 <TableCell>{order.paymentMethod}</TableCell>
+                <TableCell>{order.notes || '-'}</TableCell>
               </TableRow>
             ))}
           </TableBody>

@@ -49,6 +49,13 @@ export function OrderTable({ orders }: OrderTableProps) {
   // The component now receives orders directly as a prop.
   // No need for internal state for loading, error, or the orders themselves.
 
+  const statusColorMap: { [key in OrderStatus]: string } = {
+    PENDING: "bg-orange-100",
+    CONFIRMED: "bg-blue-100",
+    DELIVERED: "bg-green-100",
+    CANCELLED: "bg-gray-100",
+  };
+
   if (!orders) {
     return <p>No orders to display.</p>;
   }
@@ -75,7 +82,7 @@ export function OrderTable({ orders }: OrderTableProps) {
           </TableHeader>
           <TableBody>
             {orders.map((order) => (
-              <TableRow key={order.id}>
+              <TableRow key={order.id} className={statusColorMap[order.status]}>
                 <TableCell className="font-medium">{order.id}</TableCell>
                 <TableCell>{new Date(order.createdAt).toLocaleString()}</TableCell>
                 <TableCell>

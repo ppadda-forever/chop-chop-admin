@@ -36,32 +36,72 @@ export async function getKpiData() {
   tomorrow.setDate(tomorrow.getDate() + 1);
 
   try {
+    // 1. 오늘 주문 수 및 매출
     const totalOrdersToday = await prisma.order.count({
-      where: {
-        createdAt: {
-          gte: today,
-          lt: tomorrow,
-        },
-      },
+      where: { createdAt: { gte: today, lt: tomorrow } },
     });
 
     const totalRevenueResult = await prisma.order.aggregate({
-      _sum: {
-        totalAmount: true,
-      },
-      where: {
-        createdAt: {
-          gte: today,
-          lt: tomorrow,
-        },
-      },
+      _sum: { totalAmount: true },
+      where: { createdAt: { gte: today, lt: tomorrow } },
+    });
+    const totalRevenueToday = totalRevenueResult._sum.totalAmount || 0;
+
+    // 2. 평균 처리 시간 (주문 완료 기준)
+    const deliveredOrders = await prisma.order.findMany({
+      where: { status: 'DELIVERED' },
+      select: { createdAt: true, updatedAt: true },
     });
 
-    const totalRevenueToday = totalRevenueResult._sum.totalAmount || 0;
+    let avgProcessingTimeInMinutes = 0;
+    if (deliveredOrders.length > 0) {
+      const totalProcessingTime = deliveredOrders.reduce((acc, order) => {
+        const processingTime = order.updatedAt.getTime() - order.createdAt.getTime();
+        return acc + processingTime;
+      }, 0);
+      avgProcessingTimeInMinutes = Math.round(totalProcessingTime / deliveredOrders.length / (1000 * 60));
+    }
+
+    // 3. 전환율 계산
+    const qrEntrySessions = await prisma.analytics.findMany({
+      where: { eventType: 'QR_ENTRY' },
+      select: { sessionId: true },
+      distinct: ['sessionId'],
+    });
+    const qrEntrySessionIds = qrEntrySessions.map(e => e.sessionId);
+
+    let cartConversionRate = 0;
+    let orderConversionRate = 0;
+
+    if (qrEntrySessionIds.length > 0) {
+      const cartAddGroups = await prisma.analytics.groupBy({
+        by: ['sessionId'],
+        where: {
+          sessionId: { in: qrEntrySessionIds },
+          eventType: 'CART_ADD_ITEM',
+        },
+      });
+      const cartAddSessionCount = cartAddGroups.length;
+
+      const orderCompleteGroups = await prisma.analytics.groupBy({
+        by: ['sessionId'],
+        where: {
+          sessionId: { in: qrEntrySessionIds },
+          eventType: 'ORDER_COMPLETE',
+        },
+      });
+      const orderCompleteSessionCount = orderCompleteGroups.length;
+      
+      cartConversionRate = (cartAddSessionCount / qrEntrySessionIds.length) * 100;
+      orderConversionRate = (orderCompleteSessionCount / qrEntrySessionIds.length) * 100;
+    }
 
     return {
       totalOrdersToday,
       totalRevenueToday,
+      avgProcessingTimeInMinutes,
+      cartConversionRate,
+      orderConversionRate,
     };
   } catch (error) {
     console.error("Error fetching KPI data with Prisma Server Action:", error);

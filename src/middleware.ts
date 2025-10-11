@@ -3,17 +3,16 @@ import type { NextRequest } from 'next/server'
 
 export function middleware(request: NextRequest) {
   const session = request.cookies.get('session')?.value
+  const pathname = request.nextUrl.pathname
 
-  const isLoginPage = request.nextUrl.pathname === '/login'
-
-  // If user is not logged in and trying to access a protected page
-  if (!session && !isLoginPage) {
-    return NextResponse.redirect(new URL('/login', request.url))
+  // Redirect logged-in users from the login page to the home page
+  if (session && pathname === '/login') {
+    return NextResponse.redirect(new URL('/', request.url))
   }
 
-  // If user is logged in and trying to access the login page
-  if (session && isLoginPage) {
-    return NextResponse.redirect(new URL('/', request.url))
+  // Redirect unauthenticated users from protected pages to the login page
+  if (!session && pathname !== '/login') {
+    return NextResponse.redirect(new URL('/login', request.url))
   }
 
   return NextResponse.next()

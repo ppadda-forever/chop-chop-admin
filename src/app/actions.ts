@@ -13,7 +13,7 @@ export async function login(formData: FormData) {
 
   if (username === adminUsername && password === adminPassword) {
     // Set a session cookie
-    cookies().set('session', 'loggedin', {
+    (await cookies()).set('session', 'loggedin', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       path: '/',
@@ -25,7 +25,7 @@ export async function login(formData: FormData) {
 }
 
 export async function logout() {
-  cookies().delete('session')
+  (await cookies()).delete('session')
   redirect('/login')
 }
 
